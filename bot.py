@@ -5,29 +5,27 @@ from config import TOKEN_API
 from Keybords import *
 from telebot import types
 from time import sleep
+from calc import model_racional as mr
+from phonebook import working_with_datebase as wd
 
+# Глобальные переменные и константы
 bot = telebot.TeleBot(TOKEN_API)
-# dp = Dispatcher(bot)
 chat_id = ''
+message_id = 0
 dic = {}
 list_text = list()
 list_callback = list()
-message_id = 0
+surname = ''
+name = ''
+patronymic = ''
+email_address = ''
+telephone = ''
 HELP_COMMAND = """
 <b>/tic_tac_toe</b> - <i>Запускает игру Крестики-Нолики</i>
 <b>/calc</b> - <i>Запускает решение примеров</i>
 <b>/phonebook</b> - <i>Работа с телефонным справочником</i>
 <b>/help</b> - <i>Выводит список команд с пояснениями</i>"""
 
-
-async def on_start(_):
-    print('Server start!')
-
-
-# @bot.message_handler(commands=['test'])
-# def start_command(message: types.Message):
-#     bot.send_message(message.chat.id, 'проверка',
-#                      reply_markup=keyboard_tic_tac)
 
 @bot.message_handler(commands=['start'])
 def start_command(message: types.Message):
@@ -41,7 +39,7 @@ def help_command(message: types.Message):
     lg.write_data(f'Бот получил команду "{message.text}"')
     bot.send_message(message.chat.id, HELP_COMMAND, parse_mode='HTML')
 
-
+# Игра в крестики-нолики
 @bot.message_handler(commands=['tic_tac_toe'])
 def tic_tac_game(message: types.Message):  # Выбор функций бота
     global chat_id
@@ -58,8 +56,7 @@ def tic_tac_game(message: types.Message):  # Выбор функций бота
 
 def start_game(message):  # Функция определения, кто будет ходить первым
     global list_text, list_callback
-    list_text = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
-    list_callback = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+    list_text, list_callback = get_clean_lists()  # получаем чистые листы для клавиатуры
     if message.text == 'да':
         lg.write_data(f'Пользователь принял решение ходить первым')
         bot.send_message(message.chat.id, 'Выбери клетку!', reply_markup=keyboard_tic_tac)
@@ -76,7 +73,7 @@ def start_game(message):  # Функция определения, кто буд
         bot.register_next_step_handler(message, start_game)
 
 
-@bot.callback_query_handler(func=lambda callback: callback.data != '_')
+@bot.callback_query_handler(func=lambda callback: callback.data != '_' and len(callback.data) < 2)
 def user_check(callback: types.CallbackQuery):
     global list_text, list_callback, dic, message_id
     message_id = callback.message.message_id
@@ -88,16 +85,16 @@ def user_check(callback: types.CallbackQuery):
     if game.check_winner(dic):
         bot.edit_message_text('Ты выиграл!!', callback.message.chat.id, message_id,
                               reply_markup=update_keyboard_tic_tac(list_text, list_callback))
+        bot.send_sticker(chat_id, 'CAACAgIAAxkBAAEHjfpj21nUQdP4CspZIDuDLUiXsYIuOwAClygAAhcXgEq2a7UNPA1jui4E')
         sleep(3)
-        list_text = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
-        list_callback = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+        list_text, list_callback = get_clean_lists()  # получаем чистые листы для клавиатуры
         bot.delete_message(chat_id, message_id)
     elif '.' not in dic.values():
         bot.edit_message_text('У нас ничья!', callback.message.chat.id, message_id,
                               reply_markup=update_keyboard_tic_tac(list_text, list_callback))
+        bot.send_sticker(chat_id, 'CAACAgIAAxkBAAEHjfZj21l0OmNtMUnqPym4N5ibvAOKcQACsSgAAtyCgErABNl49-Pvqy4E')
         sleep(3)
-        list_text = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
-        list_callback = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+        list_text, list_callback = get_clean_lists()  # получаем чистые листы для клавиатуры
         bot.delete_message(chat_id, message_id)
     else:
         bot.edit_message_text('Я хожу!', callback.message.chat.id, message_id,
@@ -114,156 +111,204 @@ def pc_check():  # Ход бота
     list_callback[int(bot_choice)-1] = '_'
     if '0' not in dic.values():
         bot.send_message(chat_id, 'Твой ход!', reply_markup=update_keyboard_tic_tac(list_text, list_callback))
-    dic[bot_choice] = '0'
-    if game.check_winner(dic):
-        lg.write_data(f'Бот победил в игре')
-        bot.edit_message_text('Я победил!', chat_id, message_id,
-                              reply_markup=update_keyboard_tic_tac(list_text, list_callback))
-        sleep(3)
-        list_text = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
-        list_callback = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
-        bot.delete_message(chat_id, message_id)
-    elif '.' not in dic.values():
-        lg.write_data(f'Игра завершилась ничьей')
-        bot.edit_message_text('Ой у нас ничья!', chat_id, message_id,
-                              reply_markup=update_keyboard_tic_tac(list_text, list_callback))
-        sleep(3)
-        list_text = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
-        list_callback = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
-        bot.delete_message(chat_id, message_id)
+        dic[bot_choice] = '0'
     else:
-        bot.edit_message_text('Твой ход!', chat_id, message_id,
-                              reply_markup=update_keyboard_tic_tac(list_text, list_callback))
-        # message = bot.send_message(chat_id, 'Твой ход!')
-        # bot.register_next_step_handler(message, user_check)
+        dic[bot_choice] = '0'
+        if game.check_winner(dic):
+            lg.write_data(f'Бот победил в игре')
+            bot.edit_message_text('Я победил!', chat_id, message_id,
+                                  reply_markup=update_keyboard_tic_tac(list_text, list_callback))
+            bot.send_sticker(chat_id, 'CAACAgIAAxkBAAEHjfRj21kdEf2zMEdDxp0LHrd2xtanZgACoiwAAr7HgEpogKU2nF47iy4E')
+            sleep(3)
+            list_text, list_callback = get_clean_lists()  # получаем чисты листы для клавиатуры
+            bot.delete_message(chat_id, message_id)
+        elif '.' not in dic.values():
+            lg.write_data(f'Игра завершилась ничьей')
+            bot.edit_message_text('Ой у нас ничья!', chat_id, message_id,
+                                  reply_markup=update_keyboard_tic_tac(list_text, list_callback))
+            bot.send_sticker(chat_id, 'CAACAgIAAxkBAAEHjfZj21l0OmNtMUnqPym4N5ibvAOKcQACsSgAAtyCgErABNl49-Pvqy4E')
+            sleep(3)
+            list_text, list_callback = get_clean_lists()  # получаем чисты листы для клавиатуры
+            bot.delete_message(chat_id, message_id)
+        else:
+            bot.edit_message_text('Твой ход!', chat_id, message_id,
+                                  reply_markup=update_keyboard_tic_tac(list_text, list_callback))
 
 
-# def user_check(message):  # Ход пользователя
-#     global dic
-#     lg.write_data(f'Начался ход пользователя')
-#     player_turn = message.text
-#     if player_turn in ('1', '2', '3', '4', '5', '6', '7', '8', '9') and dic.get(player_turn) == '.':
-#         dic[player_turn] = 'x'
-#
-#         lg.write_data(f'Пользователь выбрал клетку: {player_turn}')
-#         if game.check_winner(dic):
-#             lg.write_data(f'Пользователь победил в игре')
-#             bot.send_message(message.chat.id, 'Ты выиграл!')
-#             bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEHijtj2ju25yD9IASXu2icS_RIgMtu1AAClygAAhcXgEq2a7UNPA1jui4E')
-#         elif '.' not in dic.values():
-#             lg.write_data(f'Игра завершилась ничьей')
-#             bot.send_message(message.chat.id, 'Ой у нас ничья!')
-#         else:
-#             bot.send_message(message.chat.id, game.print_dic(dic))
-#             pc_check()
-#     else:
-#         lg.write_data(f'На ходе пользователя зафиксирован не корректный ввод: {player_turn}')
-#         bot.send_message(message.chat.id, 'Ты что-то не то ввел! Попробуй еще раз!')
-#         bot.register_next_step_handler(message, user_check)
+def get_clean_lists():  # чистые листы для клавиатуры
+    list_t = [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ']
+    list_cal = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+    return list_t, list_cal
 
 
+# Калькулятор
+@bot.message_handler(commands=['calc'])
+def calc_command(message: types.Message):
+    global chat_id
+    chat_id = message.chat.id
+    bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEHjotj23njbDoc0hH6f0DMmeghAQIGhwACXAADYIltDAgZgYxjUpb6LgQ')
+    bot.send_message(message.chat.id, 'Вводи пример!')
+    bot.register_next_step_handler(message, count_example)
 
 
+def count_example(message):  # Функиця решения примера
+    example, example_list = mr.get_nums(message.text)
+    lg.write_data(f'Пользователь ввел пример: {example}')
+    result = mr.get_result(example_list)
+    lg.write_data(f'Получен ответ: {result}')
+    bot.send_message(chat_id, f'{example} = {result}')
 
 
+# Телефонный справочник
+@bot.message_handler(commands=['phonebook'])
+def phonebook_command(message: types.Message):
+    global chat_id
+    chat_id = message.chat.id
+    bot.send_message(chat_id, 'Что будем делать?', reply_markup=keyboard_phonebook)
 
 
+@bot.callback_query_handler(func=lambda callback: callback.data)
+def user_choice(callback: types.CallbackQuery):
+    choice = callback.data
+    lg.write_data(f'Бот получил команду "{choice}"')
+    if choice == 'Добавить контакт':
+        lg.write_data(f'Начато создание контакта')
+        get_name()
+    elif choice == 'Найти контакт':
+        lg.write_data(f'Запущен поиск контакта')
+        message = bot.send_message(chat_id, 'Введите одно из данных для поиска')
+        bot.register_next_step_handler(message, find_contact)
+    elif choice == 'Удалить контакт':  # Удалить контакт
+        lg.write_data(f'Запущено удаление контакта')
+        message = bot.send_message(chat_id, 'Выбери контакт из списка и введи цифру!')
+        bot.send_message(chat_id, wd.print_book())
+        lg.write_data(f'Пользователю выведен справочник')
+        bot.register_next_step_handler(message, del_contact)
+    elif choice == 'Показать справочник':  # Вывод справочника
+        lg.write_data(f'Запущен вывод справочника')
+        bot.send_message(chat_id, wd.print_book())
+        phonebook_command(callback.message)
+    elif choice == 'Импортировать справочник':  # Импорт данных из получаемого файла
+        lg.write_data(f'Запущен импорт словаря из внешнего файла')
+        message = bot.send_message(chat_id, 'Отправьте мне файл .txt')
+        bot.register_next_step_handler(message, import_base)
+    elif choice == 'Экспортировать справочник':
+        lg.write_data(f'Запущен экспорт справочника')
+        message = bot.send_message(chat_id, 'В каком формате отправить справочник?\n'
+                                            '1. Одна запись - на одной строке;\n'
+                                            '2. Каждое значение на отдельной строке\n'
+                                            'Введите цифру!')
+        bot.register_next_step_handler(message, export_file)
+    elif choice == 'Выход':
+        bot.send_sticker(chat_id, 'CAACAgIAAxkBAAEHjoRj23GFRLHXgRSs5FftXq_Mz-iBcwACbQADYIltDNNb9ft2ZA6HLgQ')
+    else:
+        lg.write_data(f'Зафиксирована неизвестная команда')
+        bot.send_sticker(chat_id, 'CAACAgIAAxkBAAEHijdj2jpoePppDQ-ye4hVXVIGBehfFAACByYAArCAgEqLpTHeB5NBWy4E')
+        bot.send_message(chat_id, 'Ты ввел что-то не то!')
 
 
+def get_name():  # Запрашиваем имя
+    mess = bot.send_message(chat_id, 'Введите имя')
+    bot.register_next_step_handler(mess, get_surname)
 
 
+def get_surname(mess):  # Заносим в переменную имя и запрашиваем фамилию
+    global name
+    name = mess.text
+    lg.write_data(f'Получено имя контакта {name}')
+    bot.send_message(chat_id, 'Введите фамилию')
+    bot.register_next_step_handler(mess, get_patronymic)
 
 
+def get_patronymic(mess):  # Заносим в переменную фамилию и запрашиваем отчество
+    global surname
+    surname = mess.text
+    lg.write_data(f'Получена фамилия контакта {surname}')
+    bot.send_message(chat_id, 'Введите отчество')
+    bot.register_next_step_handler(mess, get_email)
 
 
+def get_email(mess):  # Заносим в переменную отчество и запрашиваем email
+    global patronymic
+    patronymic = mess.text
+    lg.write_data(f'Получено отчество контакта {patronymic}')
+    bot.send_message(chat_id, 'Введите email')
+    bot.register_next_step_handler(mess, get_telephone)
 
 
+def get_telephone(mess):  # Заносим в переменную email и запрашиваем телефон
+    global email_address
+    email_address = mess.text
+    lg.write_data(f'Получен email контакта {email_address}')
+    bot.send_message(chat_id, 'Введите телефон')
+    bot.register_next_step_handler(mess, set_data)
 
 
-# @bot.message_handler(commands=['tic_tac_toe'])
-# def tic_tac_game(message: types.Message):  # Выбор функций бота
-#     global chat_id
-#     chat_id = message.chat.id
-#     lg.write_data(f'Бот получил команду "{message.text}"')
-#     bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEHi2Jj2ov3gyGrRmMg64l3VXS6-3AKuwACUgADYIltDBp238_XJHBwLgQ')
-#     bot.send_message(message.chat.id, 'Давай играть! Чур у меня нолики! Хочешь ходить первым?')
-#     lg.write_data(f'Начинается игра "крестики-нолики"')
-#     global dic
-#     dic = {'1': '.', '2': '.', '3': '.', '4': '.', '5': '.', '6': '.', '7': '.', '8': '.', '9': '.'}
-#     lg.write_data(f'Словарь заполнен пробелами')
-#     bot.register_next_step_handler(message, start_game)
-#     # elif mes.text.lower() == 'посчитаем':
-#     #     bot.send_message(chat_id, 'Хорошо! Вводи пример!')
-#     #     lg.write_data(f'Получаем пример для решения')
-#     #     bot.register_next_step_handler(mes, count_example)
-#     # else:
-#     #     lg.write_data(f'Зафиксирована неизвестная команда')
-#     #     bot.send_message(message.chat.id, 'Я тебя не понимаю! Воспользуйся командой "/help"!')
-#
-#
-# def start_game(message):  # Функция определения, кто будет ходить первым
-#     if message.text == 'да':
-#         lg.write_data(f'Пользователь принял решение ходить первым')
-#         bot.send_message(message.chat.id, 'Выбери клетку!')
-#         bot.register_next_step_handler(message, user_check)
-#     elif message.text == 'нет':
-#         lg.write_data(f'Бот ходит первым')
-#         bot.send_message(message.chat.id, 'Хорошо, я начинаю!')
-#         pc_check()
-#     else:
-#         lg.write_data(f'В функции определения хода зафиксирована неизвестная команда "{message.text}"')
-#         bot.send_message(message.chat.id, 'Я тебя не пониманию! Скажи еще раз!')
-#         bot.register_next_step_handler(message, start_game)
-#
-#
-# def user_check(message):  # Ход пользователя
-#     global dic
-#     lg.write_data(f'Начался ход пользователя')
-#     player_turn = message.text
-#     if player_turn in ('1', '2', '3', '4', '5', '6', '7', '8', '9') and dic.get(player_turn) == '.':
-#         dic[player_turn] = 'x'
-#         lg.write_data(f'Пользователь выбрал клетку: {player_turn}')
-#         if game.check_winner(dic):
-#             lg.write_data(f'Пользователь победил в игре')
-#             bot.send_message(message.chat.id, 'Ты выиграл!')
-#             bot.send_sticker(message.chat.id, 'CAACAgIAAxkBAAEHijtj2ju25yD9IASXu2icS_RIgMtu1AAClygAAhcXgEq2a7UNPA1jui4E')
-#         elif '.' not in dic.values():
-#             lg.write_data(f'Игра завершилась ничьей')
-#             bot.send_message(message.chat.id, 'Ой у нас ничья!')
-#         else:
-#             bot.send_message(message.chat.id, game.print_dic(dic))
-#             pc_check()
-#     else:
-#         lg.write_data(f'На ходе пользователя зафиксирован не корректный ввод: {player_turn}')
-#         bot.send_message(message.chat.id, 'Ты что-то не то ввел! Попробуй еще раз!')
-#         bot.register_next_step_handler(message, user_check)
-#
-#
-# def pc_check():  # Ход бота
-#     global dic
-#     lg.write_data(f'Начался ход бота')
-#     bot.send_message(chat_id, 'Мой ход:')
-#     bot_choice = game.pc_choice(dic)
-#     lg.write_data(f'Бот выбирает клетку {bot_choice}')
-#     dic[bot_choice] = '0'
-#     bot.send_message(chat_id, game.print_dic(dic))
-#     if game.check_winner(dic):
-#         lg.write_data(f'Бот победил в игре')
-#         bot.send_message(chat_id, 'Я победил!')
-#     elif '.' not in dic.values():
-#         lg.write_data(f'Игра завершилась ничьей')
-#         bot.send_message(chat_id, 'Ой у нас ничья!')
-#     else:
-#         message = bot.send_message(chat_id, 'Твой ход!')
-#         bot.register_next_step_handler(message, user_check)
+def set_data(mess):  # Заносим в переменную телефон и записываем контакт в базу
+    global telephone
+    telephone = mess.text
+    lg.write_data(f'Получен телефон контакта {telephone}')
+    wd.add_contact(surname, name, patronymic, email_address, telephone)
+    bot.send_message(chat_id, 'Контакт добавлен')
+    phonebook_command(mess)
 
 
-# def count_example(message):  # Функиця решения примера
-#     example, example_list = mr.get_nums(message.text)
-#     lg.write_data(f'Пользователь ввел пример: {example}')
-#     result = mr.get_result(example_list)
-#     lg.write_data(f'Получен ответ: {result}')
-#     bot.send_message(chat_id, f'{example} = {result}')
+def find_contact(mess):  # Поиск контакта в справочнике
+    text = mess.text
+    lg.write_data(f'Для поиска от пользователя получены данные: {text}')
+    text = wd.find_in_book(text)
+    if text:
+        lg.write_data(f'Найдены данные:\n {surname}')
+        bot.send_message(chat_id, text)
+        phonebook_command(mess)
+    else:
+        lg.write_data(f'Поиск ни чего не нашел')
+        bot.send_message(chat_id, 'Ни чего не нашел')
+        phonebook_command(mess)
+
+
+def del_contact(message):  # Удаление контакта
+    key = message.text
+    if key.isdigit() and int(key) in wd.book.keys():
+        lg.write_data(f'От пользователя получен ключ: {key}')
+        del wd.book[int(key)]
+        lg.write_data(f'Контакт удален из справочника')
+        bot.send_message(chat_id, 'Контакт удален')
+        phonebook_command(message)
+    else:
+        lg.write_data(f'От пользователя получен ключ: {key}, контакт не найден!')
+        bot.send_message(chat_id, 'Контакт не найден!')
+        phonebook_command(message)
+
+
+def import_base(message):
+    file_info = bot.get_file(message.document.file_id)
+    downloaded_file = bot.download_file(file_info.file_path)
+    src = 'E:/УЧЕБА/Home_Work/phonebook/files' + message.document.file_name
+    with open(src, 'wb') as new_file:
+        new_file.write(downloaded_file)
+    lg.write_data(f'Файл получен и сохранен')
+    wd.import_base(src)
+    lg.write_data(f'Импорт завершен')
+    bot.send_message(chat_id, 'Импорт данных завершен!')
+    phonebook_command(message)
+
+
+def export_file(message):
+    if message.text == '1':
+        lg.write_data(f'Запущен экспорт по первому правилу')
+        wd.ex_base(message.text)
+        bot.send_document(chat_id, open(r'E:/УЧЕБА/Home_Work/phonebook/export.csv', 'rb'))
+        phonebook_command(message)
+    elif message.text == '2':
+        lg.write_data(f'Запущен экспорт по второму правилу')
+        wd.ex_base(message.text)
+        bot.send_document(chat_id, open(r'E:/УЧЕБА/Home_Work/export_2.csv', 'rb'))
+        phonebook_command(message)
+    else:
+        lg.write_data(f'Зафиксирован не корректный ввод: {message.text}')
+        bot.send_message(chat_id, 'Ты что-то не то ввел')
+        phonebook_command(message)
 
 
 def start_bot():
