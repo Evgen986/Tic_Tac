@@ -39,6 +39,7 @@ def help_command(message: types.Message):
     lg.write_data(f'Бот получил команду "{message.text}"')
     bot.send_message(message.chat.id, HELP_COMMAND, parse_mode='HTML')
 
+
 # Игра в крестики-нолики
 @bot.message_handler(commands=['tic_tac_toe'])
 def tic_tac_game(message: types.Message):  # Выбор функций бота
@@ -55,16 +56,15 @@ def tic_tac_game(message: types.Message):  # Выбор функций бота
 
 
 def start_game(message):  # Функция определения, кто будет ходить первым
-    global list_text, list_callback
+    global list_text, list_callback, message_id
     list_text, list_callback = get_clean_lists()  # получаем чистые листы для клавиатуры
-    if message.text == 'да':
+    if message.text.lower() == 'да':
         lg.write_data(f'Пользователь принял решение ходить первым')
-        bot.send_message(message.chat.id, 'Выбери клетку!', reply_markup=keyboard_tic_tac)
-        # bot.register_next_step_handler(message, user_check)
-    elif message.text == 'нет':
+        message_id = bot.send_message(message.chat.id, 'Выбери клетку!',
+                                      reply_markup=update_keyboard_tic_tac(list_text,list_callback)).message_id
+    elif message.text.lower() == 'нет':
         lg.write_data(f'Бот ходит первым')
         bot.send_message(message.chat.id, 'Хорошо, я начинаю!')
-        global message_id
         message_id = message.message_id
         pc_check()
     else:
@@ -78,10 +78,10 @@ def user_check(callback: types.CallbackQuery):
     global list_text, list_callback, dic, message_id
     message_id = callback.message.message_id
     key = callback.data
+    lg.write_data(f'Пользователь выбрал клетку {key}')
     list_text[int(key)-1] = '❌'
     list_callback[int(key)-1] = '_'
     dic[key] = 'x'
-    # lg.write_data(f'Пользователь выбрал клетку: {player_turn}')
     if game.check_winner(dic):
         bot.edit_message_text('Ты выиграл!!', callback.message.chat.id, message_id,
                               reply_markup=update_keyboard_tic_tac(list_text, list_callback))
@@ -97,7 +97,7 @@ def user_check(callback: types.CallbackQuery):
         list_text, list_callback = get_clean_lists()  # получаем чистые листы для клавиатуры
         bot.delete_message(chat_id, message_id)
     else:
-        bot.edit_message_text('Я хожу!', callback.message.chat.id, message_id,
+        bot.edit_message_text('Я хожу!', chat_id=chat_id, message_id=message_id,
                               reply_markup=update_keyboard_tic_tac(list_text, list_callback))
         pc_check()
 
@@ -109,7 +109,7 @@ def pc_check():  # Ход бота
     lg.write_data(f'Бот выбирает клетку {bot_choice}')
     list_text[int(bot_choice)-1] = '⚪️'
     list_callback[int(bot_choice)-1] = '_'
-    if '0' not in dic.values():
+    if 'x' not in dic.values():
         bot.send_message(chat_id, 'Твой ход!', reply_markup=update_keyboard_tic_tac(list_text, list_callback))
         dic[bot_choice] = '0'
     else:
@@ -203,8 +203,12 @@ def user_choice(callback: types.CallbackQuery):
         bot.send_sticker(chat_id, 'CAACAgIAAxkBAAEHjoRj23GFRLHXgRSs5FftXq_Mz-iBcwACbQADYIltDNNb9ft2ZA6HLgQ')
     else:
         lg.write_data(f'Зафиксирована неизвестная команда')
-        bot.send_sticker(chat_id, 'CAACAgIAAxkBAAEHijdj2jpoePppDQ-ye4hVXVIGBehfFAACByYAArCAgEqLpTHeB5NBWy4E')
-        bot.send_message(chat_id, 'Ты ввел что-то не то!')
+        mes_id_1 = bot.send_sticker(chat_id,
+                                    'CAACAgIAAxkBAAEHijdj2jpoePppDQ-ye4hVXVIGBehfFAACByYAArCAgEqLpTHeB5NBWy4E').message_id
+        mes_id_2 = bot.send_message(chat_id, 'Ты ввел что-то не то!').message_id
+        sleep(3)
+        bot.delete_message(chat_id, mes_id_1)
+        bot.delete_message(chat_id, mes_id_2)
 
 
 def get_name():  # Запрашиваем имя
@@ -214,7 +218,7 @@ def get_name():  # Запрашиваем имя
 
 def get_surname(mess):  # Заносим в переменную имя и запрашиваем фамилию
     global name
-    name = mess.text
+    name = mess.text.capitalize()
     lg.write_data(f'Получено имя контакта {name}')
     bot.send_message(chat_id, 'Введите фамилию')
     bot.register_next_step_handler(mess, get_patronymic)
@@ -222,7 +226,7 @@ def get_surname(mess):  # Заносим в переменную имя и за�
 
 def get_patronymic(mess):  # Заносим в переменную фамилию и запрашиваем отчество
     global surname
-    surname = mess.text
+    surname = mess.text.capitalize()
     lg.write_data(f'Получена фамилия контакта {surname}')
     bot.send_message(chat_id, 'Введите отчество')
     bot.register_next_step_handler(mess, get_email)
@@ -230,7 +234,7 @@ def get_patronymic(mess):  # Заносим в переменную фамили
 
 def get_email(mess):  # Заносим в переменную отчество и запрашиваем email
     global patronymic
-    patronymic = mess.text
+    patronymic = mess.text.capitalize()
     lg.write_data(f'Получено отчество контакта {patronymic}')
     bot.send_message(chat_id, 'Введите email')
     bot.register_next_step_handler(mess, get_telephone)
